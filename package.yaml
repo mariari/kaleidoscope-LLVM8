@@ -23,9 +23,12 @@ dependencies:
 - base >= 4.7 && < 5
 - protolude
 - llvm-hs
+- llvm-hs-pure
 - parsec
 - bytestring
 - haskeline
+- string-transform
+- containers
 
 default-extensions:
   - NoImplicitPrelude
