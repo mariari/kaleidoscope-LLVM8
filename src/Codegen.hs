@@ -1,18 +1,16 @@
 module Codegen where
 
-import Data.ByteString.Short
+import Data.ByteString.Short hiding (length)
 
-import Protolude hiding (Type, moduleName, local)
-import Data.String
+import Protolude hiding (Type, moduleName, local, head)
 import Prelude (String, error)
 
 import LLVM.AST
-import LLVM.AST.Typed (typeOf)
 import LLVM.AST.AddrSpace
-import LLVM.AST.Type hiding (double)
 import LLVM.AST.Global as Global
 import qualified LLVM.AST as AST
 import qualified Data.Map.Strict as Map
+import           Data.String.Transform
 
 import qualified LLVM.AST.Linkage as L
 import qualified LLVM.AST.Constant as C
@@ -39,8 +37,7 @@ double = FloatingPointType DoubleFP
 -- Codegen State
 -------------------------------------------------------------------------------
 
-type SymbolTable = Map.Map ShortByteString Operand
-
+type SymbolTable = Map.Map String Operand
 
 data CodegenState
   = CodegenState {
@@ -100,8 +97,8 @@ entryBlockName = "entry"
 emptyCodegen :: CodegenState
 emptyCodegen = CodegenState (mkName entryBlockName) Map.empty Map.empty 1 0 Map.empty
 
-execCodegen :: Codegen a -> CodegenState
-execCodegen m = execState (runCodegen m) emptyCodegen
+execCodegen :: SymbolTable -> Codegen a -> CodegenState
+execCodegen sym m = execState (runCodegen m) (emptyCodegen {symtab = sym})
 
 fresh :: Codegen Word
 fresh = do
@@ -115,8 +112,8 @@ fresh = do
 newtype LLVM a = LLVM (State AST.Module a)
   deriving (Functor, Applicative, Monad, MonadState AST.Module )
 
-runLLVM :: AST.Module -> LLVM a -> AST.Module
-runLLVM mod (LLVM m) = execState m mod
+runLLVM :: AST.Module -> LLVM a -> (a, AST.Module)
+runLLVM mod (LLVM m) = runState m mod
 
 emptyModule :: ShortByteString -> AST.Module
 emptyModule label = defaultModule { moduleName = label }
@@ -127,31 +124,50 @@ addDefn d = do
   modify $ \s -> s { moduleDefinitions = defs <> [d] }
 
 
-define :: Type -> String -> [(Type, Name)] -> [BasicBlock] -> LLVM ()
-define retty label argtys body =
+makeFn :: Type -> [(Type, b)] -> String -> Codegen ()
+makeFn retty argtys label =
+  assign label
+  $ ConstantOperand
+  $ C.GlobalReference
+     (PointerType (FunctionType retty (fst <$> argtys) False) (AddrSpace 0))
+     (mkName label)
+define :: Type -> String -> [(Type, Name)] -> [BasicBlock] -> LLVM Operand
+define retty label argtys body = do
   addDefn
-  $ GlobalDefinition
-  $ functionDefaults
-    {
-      parameters               = ((\(ty,nm) → Parameter ty nm []) <$> argtys, False)
-    , Global.callingConvention = CC.Fast -- for fun!
-    , returnType               = retty
-    , basicBlocks              = body
-    , name                     = mkName label
-    }
+    $ GlobalDefinition
+    $ functionDefaults
+      {
+        parameters               = params
+      , Global.callingConvention = CC.Fast -- for fun!
+      , returnType               = retty
+      , basicBlocks              = body
+      , name                     = mkName label
+      }
+  return
+    $ ConstantOperand
+    $ C.GlobalReference
+        (PointerType (FunctionType retty (fst <$> argtys) False) (AddrSpace 0))
+        (mkName label)
+    where
+      params = ((\(ty,nm) → Parameter ty nm []) <$> argtys, False)
 
-external :: Type -> String -> [(Type, Name)] -> LLVM ()
-external retty label argtys =
+external :: Type -> String -> [(Type, Name)] -> LLVM Operand
+external retty label argtys = do
   addDefn
-  $ GlobalDefinition
-  $ functionDefaults
-    { parameters               = ((\(ty,nm) → Parameter ty nm []) <$> argtys, False)
-    , Global.callingConvention = CC.Fast -- for fun!
-    , returnType               = retty
-    , basicBlocks              = []
-    , name                     = mkName label
-    , linkage                  = L.External
-    }
+    $ GlobalDefinition
+    $ functionDefaults
+      { parameters               = ((\(ty,nm) → Parameter ty nm []) <$> argtys, False)
+      , Global.callingConvention = CC.Fast -- for fun!
+      , returnType               = retty
+      , basicBlocks              = []
+      , name                     = mkName label
+      , linkage                  = L.External
+      }
+  return
+    $ ConstantOperand
+    $ C.GlobalReference
+        (PointerType (FunctionType retty (fst <$> argtys) False) (AddrSpace 0))
+        (mkName label)
 
 -------------------------------------------------------------------------------
 -- Block Stack
@@ -198,8 +214,12 @@ current = do
 local :: Name -> Operand
 local = LocalReference double
 
-externf :: Name -> Operand
-externf = ConstantOperand . C.GlobalReference double
+-- externf = ConstantOperand . C.GlobalReference (PointerType (FunctionType double [double] False) (AddrSpace 0))
+externf :: Name -> Codegen Operand
+externf (UnName name) = do
+  getvar (show name)
+externf (Name name) = do
+  getvar (toString name)
 
 instr :: Instruction -> Codegen (Operand)
 instr ins = do
@@ -282,11 +302,13 @@ load ptr = instr $ Load False ptr Nothing 0 []
 assign :: String -> Operand -> Codegen ()
 assign var x = do
   lcls <- gets symtab
-  modify $ \s -> s { symtab = Map.insert (fromString var) x lcls  }
+  modify $ \s -> s { symtab = Map.insert var x lcls  }
 
 getvar :: String -> Codegen Operand
 getvar var = do
   syms <- gets symtab
-  case Map.lookup (fromString var) syms of
+  case Map.lookup var syms of
     Just x  -> return x
-    Nothing -> error $ "Local variable not in scope: " <> show var
+    Nothing -> error $ "Local variable not in scope:"
+                     <> "\n syms: " <> show syms
+                     <> "\n var: "  <> var
