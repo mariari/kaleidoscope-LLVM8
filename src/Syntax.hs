@@ -11,7 +11,7 @@ data Expr
   | BinOp Op Expr Expr
   | Var String
   | Call Name [Expr]
-  | Function Name [Expr] Expr
+  | Function Name [Name] Expr
   | Extern Name [Expr]
   deriving (Eq, Ord, Show)
 

@@ -82,6 +82,27 @@ newtype Codegen a = Codegen { runCodegen :: State CodegenState a }
 emptyBlock :: Int -> BlockState
 emptyBlock i = BlockState i [] Nothing
 
+sortBlocks :: [(Name, BlockState)] -> [(Name, BlockState)]
+sortBlocks = sortBy (compare `on` (idx . snd))
+
+createBlocks :: CodegenState -> [BasicBlock]
+createBlocks = fmap makeBlock . sortBlocks . Map.toList . blocks
+
+makeBlock :: (Name, BlockState) -> BasicBlock
+makeBlock (l, BlockState _ s t) = BasicBlock l (reverse s) (maketerm t)
+  where
+    maketerm (Just x) = x
+    maketerm Nothing  = error $ "Block has no terminator: " <> show l
+
+entryBlockName :: String
+entryBlockName = "entry"
+
+emptyCodegen :: CodegenState
+emptyCodegen = CodegenState (mkName entryBlockName) Map.empty Map.empty 1 0 Map.empty
+
+execCodegen :: Codegen a -> CodegenState
+execCodegen m = execState (runCodegen m) emptyCodegen
+
 fresh :: Codegen Word
 fresh = do
   i <- gets count
@@ -194,6 +215,49 @@ terminator trm = do
   blk <- current
   modifyBlock (blk { term = Just trm })
   return trm
+
+fadd :: Operand -> Operand -> Codegen Operand
+fadd a b = instr $ FAdd noFastMathFlags a b []
+
+fsub :: Operand -> Operand -> Codegen Operand
+fsub a b = instr $ FSub noFastMathFlags a b []
+
+fmul :: Operand -> Operand -> Codegen Operand
+fmul a b = instr $ FMul noFastMathFlags a b []
+
+fdiv :: Operand -> Operand -> Codegen Operand
+fdiv a b = instr $ FDiv noFastMathFlags a b []
+
+toArgs :: [Operand] -> [(Operand, [A.ParameterAttribute])]
+toArgs = fmap (\x -> (x, []))
+
+-------------------------------------------------------------------------------
+-- Control Flow
+-------------------------------------------------------------------------------
+
+br :: Name -> Codegen (Named Terminator)
+br val = terminator $ Do $ Br val []
+
+cbr :: Operand -> Name -> Name -> Codegen (Named Terminator)
+cbr cond tr fl = terminator $ Do $ CondBr cond tr fl []
+
+ret :: Operand -> Codegen (Named Terminator)
+ret val = terminator $ Do $ Ret (Just val) []
+
+-------------------------------------------------------------------------------
+-- Effects
+-------------------------------------------------------------------------------
+call :: Operand -> [Operand] -> Codegen Operand
+call fn args = instr $ Call Nothing CC.Fast [] (Right fn) (toArgs args) [] []
+
+alloca :: Type -> Codegen Operand
+alloca ty = instr $ Alloca ty Nothing 0 []
+
+store :: Operand -> Operand -> Codegen Operand
+store ptr val = instr $ Store False ptr val Nothing 0 []
+
+load :: Operand -> Codegen Operand
+load ptr = instr $ Load False ptr Nothing 0 []
 
 -------------------------------------------------------------------------------
 -- Symbol Table
