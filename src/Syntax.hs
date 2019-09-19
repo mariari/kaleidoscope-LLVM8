@@ -7,17 +7,12 @@ import Prelude (String)
 type Name = String
 
 data Expr
-  = Float Double
-  | BinOp Op Expr Expr
+  = Int Integer
+  | Float Double
   | Var String
   | Call Name [Expr]
   | Function Name [Name] Expr
-  | Extern Name [Expr]
-  deriving (Eq, Ord, Show)
-
-data Op
-  = Plus
-  | Minus
-  | Times
-  | Divide
+  | Extern Name [Name]
+  | BinaryOp Name Expr Expr
+  | UnaryOp Name Expr
   deriving (Eq, Ord, Show)

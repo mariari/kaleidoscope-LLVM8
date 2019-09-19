@@ -210,6 +210,13 @@ instr ins = do
   modifyBlock (blk { stack = (ref := ins) : i } )
   return $ local ref
 
+unnminstr :: Instruction -> Codegen ()
+unnminstr ins = do
+  blk <- current
+  let i = stack blk
+  modifyBlock (blk { stack = (Do ins) : i } )
+
+
 terminator :: Named Terminator -> Codegen (Named Terminator)
 terminator trm = do
   blk <- current
@@ -227,6 +234,15 @@ fmul a b = instr $ FMul noFastMathFlags a b []
 
 fdiv :: Operand -> Operand -> Codegen Operand
 fdiv a b = instr $ FDiv noFastMathFlags a b []
+
+cons :: C.Constant -> Operand
+cons = ConstantOperand
+
+fcmp :: FP.FloatingPointPredicate -> Operand -> Operand -> Codegen Operand
+fcmp cond a b = instr $ FCmp cond a b []
+
+uitofp :: Type -> Operand -> Codegen Operand
+uitofp ty a = instr $ UIToFP a ty []
 
 toArgs :: [Operand] -> [(Operand, [A.ParameterAttribute])]
 toArgs = fmap (\x -> (x, []))
@@ -253,8 +269,8 @@ call fn args = instr $ Call Nothing CC.Fast [] (Right fn) (toArgs args) [] []
 alloca :: Type -> Codegen Operand
 alloca ty = instr $ Alloca ty Nothing 0 []
 
-store :: Operand -> Operand -> Codegen Operand
-store ptr val = instr $ Store False ptr val Nothing 0 []
+store :: Operand -> Operand -> Codegen ()
+store ptr val = unnminstr $ Store False ptr val Nothing 0 []
 
 load :: Operand -> Codegen Operand
 load ptr = instr $ Load False ptr Nothing 0 []
