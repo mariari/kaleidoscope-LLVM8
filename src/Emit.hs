@@ -17,6 +17,7 @@ import           Data.ByteString.Short
 import qualified Data.Map as Map
 
 import           Codegen
+import           JIT
 import qualified Syntax as S
 
 
@@ -99,16 +100,10 @@ binops = Map.fromList [
 
 codegen :: AST.Module -> [S.Expr] -> SymbolTable -> IO (AST.Module, SymbolTable)
 codegen mod fns tbl = do
-  modul <- withContext
-            $ \context ->
-                withModuleFromAST context newast
-                $ \m -> do
-                  llstr <- moduleLLVMAssembly m
-                  putStrLn llstr
-                  return newast
+  modul <- runJIT newast
   return (modul, tbl')
   where
-    modn          = foldM (flip codegenTop) tbl fns
+    modn           = foldM (flip codegenTop) tbl fns
     (tbl', newast) = runLLVM mod modn
 
 
