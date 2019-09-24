@@ -20,12 +20,15 @@ int = do
 floating :: Parser Expr
 floating = Float <$> float
 
+binary :: String -> Ex.Assoc -> Ex.Operator String () Identity Expr
 binary s assoc = Ex.Infix (reservedOp s >> return (BinaryOp s)) assoc
 
-binops = [[binary "*" Ex.AssocLeft,
-          binary "/" Ex.AssocLeft]
-        ,[binary "+" Ex.AssocLeft,
-          binary "-" Ex.AssocLeft]]
+binops :: Ex.OperatorTable String () Identity Expr
+binops = [[ binary "*" Ex.AssocLeft
+          , binary "/" Ex.AssocLeft]
+        , [ binary "+" Ex.AssocLeft
+          , binary "-" Ex.AssocLeft]
+        , [ binary "<" Ex.AssocLeft]]
 
 expr :: Parser Expr
 expr =  Ex.buildExpressionParser binops factor
@@ -59,6 +62,7 @@ factor = try floating
       <|> try int
       <|> try call
       <|> try variable
+      <|> ifthen
       <|> (parens expr)
 
 defn :: Parser Expr
@@ -84,3 +88,13 @@ parseExpr s = parse (contents expr) "<stdin>" s
 
 parseToplevel :: String -> Either ParseError [Expr]
 parseToplevel s = parse (contents toplevel) "<stdin>" s
+
+ifthen :: Parser Expr
+ifthen = do
+  reserved "if"
+  cond <- expr
+  reserved "then"
+  tr <- expr
+  reserved "else"
+  fl <- expr
+  return $ If cond tr fl
