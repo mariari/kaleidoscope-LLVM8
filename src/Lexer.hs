@@ -11,12 +11,13 @@ import qualified Text.Parsec.Token as Tok
 lexer :: Tok.TokenParser ()
 lexer = Tok.makeTokenParser style
   where
-    ops = ["+","*","-",";", ",", "<"]
-    names = ["def","extern", "if", "then", "else"]
+    ops = ["+","*","-","/",";","=",",","<",">","|",":"]
+    names = ["def","extern","if","then","else","in","for"
+            ,"binary", "unary", "var"]
     style = emptyDef {
-               Tok.commentLine = "#"
+               Tok.commentLine     = "#"
              , Tok.reservedOpNames = ops
-             , Tok.reservedNames = names
+             , Tok.reservedNames   = names
              }
 
 integer :: Parser Integer
@@ -24,6 +25,9 @@ integer = Tok.integer lexer
 
 float :: Parser Double
 float = Tok.float lexer
+
+whitespace :: Parser ()
+whitespace = Tok.whiteSpace lexer
 
 parens :: Parser a -> Parser a
 parens = Tok.parens lexer
@@ -42,3 +46,9 @@ reserved = Tok.reserved lexer
 
 reservedOp :: String -> Parser ()
 reservedOp = Tok.reservedOp lexer
+
+operator :: Parser String
+operator = do
+  c  <- Tok.opStart emptyDef
+  cs <- many $ Tok.opLetter emptyDef
+  return (c:cs)

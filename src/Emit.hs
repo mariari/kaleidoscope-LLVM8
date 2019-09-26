@@ -65,6 +65,11 @@ codegenTop (S.Extern name args) tbl = do
   return (Map.insert name op tbl)
     where
       fargs = toSig (fromString <$> args)
+codegenTop (S.BinaryDef name args body) tbl =
+  codegenTop (S.Function ("binary" ++ name) args body) tbl
+
+codegenTop (S.UnaryDef name args body) tbl =
+  codegenTop (S.Function ("unary" ++ name) args body) tbl
 
 codegenTop exp tbl = do
   op <- define double "main" [] blks
@@ -84,13 +89,6 @@ cgen (S.Call fn args) = do
   fnargs <- traverse cgen args
   fn     <- externf (AST.mkName fn)
   call fn fnargs
-cgen (S.BinaryOp op a b) = do
-  case Map.lookup op binops of
-    Just f -> do
-      ca <- cgen a
-      cb <- cgen b
-      f ca cb
-    Nothing -> error "no such operator"
 cgen (S.If cond tr fl) = do
   ifthen <- addBlock "if.then"
   ifelse <- addBlock "if.else"
@@ -150,7 +148,15 @@ cgen (S.For ivar start cond step body) = do
   ------------------
   setBlock forexit
   return zero
-
+cgen (S.UnaryOp op a) =
+  cgen $ S.Call ("unary" ++ op) [a]
+cgen (S.BinaryOp op a b) = do
+  case Map.lookup op binops of
+    Just f  -> do
+      ca <- cgen a
+      cb <- cgen b
+      f ca cb
+    Nothing -> cgen (S.Call ("binary" ++ op) [a,b])
 
 
 lt :: AST.Operand -> AST.Operand -> Codegen AST.Operand
