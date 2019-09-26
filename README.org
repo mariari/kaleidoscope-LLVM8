@@ -1,1 +1,12 @@
-* NewKledi
+* kaleidoscope-LLVM8
+This project aims to make [[https://github.com/sdiehl/kaleidoscope][sdiehl's kaledioscope project]] compatible
+with the LLVM8 bindings for Haskell.
+
+Hopefully in the future this will be the case for LLVM9 as well
+
+Currently only up to chapter 6 is implemented, however once the
+project is complete, we will hopefully create a PR for [[https://github.com/llvm-hs/llvm-hs-kaleidoscope][the LLVM
+version which supports only LLVM 5.0]]
+** Issues
+- Currently with optimization pass enabled, external functions are
+  optimized out
