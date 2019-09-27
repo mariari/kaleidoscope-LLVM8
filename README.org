@@ -4,9 +4,9 @@ with the LLVM8 bindings for Haskell.
 
 Hopefully in the future this will be the case for LLVM9 as well
 
-Currently only up to and including chapter 6 is implemented, however once the
-project is complete, we will hopefully create a PR for [[https://github.com/llvm-hs/llvm-hs-kaleidoscope][the LLVM
-version which supports only LLVM 5.0]]
+All of the tutorial is implemented. Once the project fully works, we
+will hopefully create a PR for [[https://github.com/llvm-hs/llvm-hs-kaleidoscope][the LLVM version which supports only
+LLVM 5.0]]
 ** Issues
 - Currently with optimization pass enabled, external functions are
   optimized out

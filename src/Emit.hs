@@ -89,6 +89,17 @@ cgen (S.Call fn args) = do
   fnargs <- traverse cgen args
   fn     <- externf (AST.mkName fn)
   call fn fnargs
+cgen (S.Let a b c) = do
+  i   <- alloca double
+  val <- cgen b
+  store i val
+  assign a i
+  cgen c
+cgen (S.BinaryOp "=" (S.Var var) val) = do
+  a <- getvar var
+  cval <- cgen val
+  store a cval
+  return cval
 cgen (S.If cond tr fl) = do
   ifthen <- addBlock "if.then"
   ifelse <- addBlock "if.else"
