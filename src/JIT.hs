@@ -51,5 +51,7 @@ runJIT mod = do
                 putStrLn $ "Evaluated to: " ++ show res
               Nothing -> return ()
 
-          -- Return the optimized module
-          return optmod
+          -- Return the NON optimized module
+          -- If we optimize code partially it eliminates call of external methods as non used code
+          -- So the solution is to accumulate and store non optimized code and optimize it right before evaluation
+          return mod
